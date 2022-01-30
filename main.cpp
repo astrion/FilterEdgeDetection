@@ -1,9 +1,7 @@
-#include <iostream>
 #include <opencv2/core/core.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/utils/logger.hpp>
-#include <vector>
 
 using namespace cv;
 using namespace std;
@@ -30,7 +28,6 @@ Mat manualDownScale(Mat image, int scaleFactor) {
 Mat imageShifterXY(Mat image, int shiftX, int shiftY) {
     /* shift image to the top right */
     //Move the image along x and y axis through regular quadrant system.
-
     Mat shiftedImg = Mat::zeros(Size(image.cols, image.rows), CV_8UC3);
     int xStart = 0;
     int yStart = 0;
@@ -38,16 +35,16 @@ Mat imageShifterXY(Mat image, int shiftX, int shiftY) {
     int yEnd = image.rows;
 
     if (shiftY > 0)
-         yEnd -= shiftY;
-    else if(shiftY <0)
+        yEnd -= shiftY;
+    else if (shiftY < 0)
         yStart -= shiftY;
 
     if (shiftX > 0)
         xStart += shiftX;
-    else if(shiftX <0)
+    else if (shiftX < 0)
         xEnd += shiftX;
 
-        // iterate through 2D matrices
+    // iterate through 2D matrices
     for (int y = yStart; y < yEnd; y++) {
         for (int x = xStart; x < xEnd; x++) {
             Vec3b &color = image.at<Vec3b>(y, x);
@@ -59,74 +56,86 @@ Mat imageShifterXY(Mat image, int shiftX, int shiftY) {
     return shiftedImg;
 }
 
-Mat padder(Mat image, int pad){
+
+Mat padder(Mat image, int pad) {
     //pad around the image by the given 'pad' amount
-    Mat paddedImg = Mat::zeros(Size(image.cols+pad*2, image.rows+pad*2), CV_8UC3);
-    for (int y = 0; y < image.rows; y++) {
-        for (int x = 0; x < image.cols; x++) {
-            Vec3b &color = image.at<Vec3b>(y, x);
-            paddedImg.at<Vec3b>(Point(x+pad, y+pad)) = color;
-        }
-    }
+    Mat paddedImg;
+    paddedImg.create(image.rows + 2 * pad, image.cols + 2 * pad, image.type());
+    paddedImg.setTo(Vec3f::all(0));
+    image.copyTo(paddedImg(Rect(pad, pad, image.cols, image.rows)));
     return paddedImg;
 }
 
-Mat gaussianKernel(int dim){
-    Mat A =Mat::zeros(Size(dim, dim),CV_32FC1);
-    A.at<float>(0,0)=0.11;
-    A.at<float>(0,1)=0.11;
-    A.at<float>(0,2)=0.11;
-    A.at<float>(1,0)=0.11;
-    A.at<float>(1,1)=0.11;
-    A.at<float>(1,2)=0.11;
 
+Mat gaussianKernel(int dim) {
+    Mat A = Mat::zeros(Size(dim, dim), CV_32FC3);
+    A.at<Vec3f>(0, 0) = Vec3f(0.11, 0.11, 0.11);
+    A.at<Vec3f>(0, 1) = Vec3f(0.11, 0.11, 0.11);
+    A.at<Vec3f>(0, 2) = Vec3f(0.11, 0.11, 0.11);
+    A.at<Vec3f>(1, 0) = Vec3f(0.11, 0.11, 0.11);
+    A.at<Vec3f>(1, 1) = Vec3f(0.11, 0.11, 0.11);
+    A.at<Vec3f>(1, 2) = Vec3f(0.11, 0.11, 0.11);
+    A.at<Vec3f>(2, 0) = Vec3f(0.11, 0.11, 0.11);
+    A.at<Vec3f>(2, 1) = Vec3f(0.11, 0.11, 0.11);
+    A.at<Vec3f>(2, 2) = Vec3f(0.11, 0.11, 0.11);
     return A;
 }
 
+Mat multiplication(Mat &A, Mat &B) {
+    return A * B;
+}
+
 Mat gaussianFilter(Mat image) {
+    image.convertTo(image, CV_32FC3, 1 / 255.0);
+
     int dim = 3;
 
     //pad image
     Mat padded = padder(image, dim / 2);
 
-   //generate kernel
+    //generate kernel
     Mat kernel = gaussianKernel(3);
 
     //apply kernel
-    Mat applied = Mat::zeros(Size(image.cols, image.rows), CV_8UC3);
+    Mat applied(Size(image.cols, image.rows), CV_32FC3, Scalar::all(0.f));
 
-    //Mat::convertTo(newImage, CV_32FC3, 1/255.0);
 //cv::Matx33f
 //https://titanwolf.org/Network/Articles/Article?AID=fe4e203f-9cb1-40a7-b39d-9e55f387be87
 //https://riptutorial.com/opencv/example/9922/efficient-pixel-access-using-cv--mat--ptr-t--pointer
 //    ushort * ptr = applied.ptr<ushort>();
-    Mat t =Mat::zeros(Size(dim, dim),CV_8UC3);
-    for (int y=0; y<image.rows; y++){
-        Vec3b *p = padded.ptr<cv::Vec3b>(y);
-        Vec3b *k = applied.ptr<cv::Vec3b>(y);
-        for (int x=0; x<image.cols; x++){
-//        ptr[9*i+0] = image.data[i+0];
+    Mat t = Mat::zeros(Size(dim, dim), CV_8UC3);
+    int halfDim = dim / 2;
+    for (int y = 0; y < image.rows; y++) {
+//        Vec3b *p = padded.ptr<cv::Vec3b>(y);
+//        Vec3b *k = applied.ptr<cv::Vec3b>(y);
+        for (int x = 0; x < image.cols; x++) {
 
-            // Matrix multiplication
-//            for(int j=0; j<dim; j++){
-//                for(int k=0; j<dim; k++){
 
-//                vector<Vec3b> &color = padded.data.at<Vec3b>(y, x);
-//                ptr[x] = cv::Vec3b(ptr[x][2], ptr[x][1], ptr[x][0]);
+//             Matrix multiplication
+            Mat small(dim, dim, CV_32FC3, Scalar::all(0.f));
+            for (int j = -halfDim; j < halfDim; j++) {
+                for (int k = -halfDim; k < halfDim; k++) {
+                    int _y = y + j + halfDim;
+                    int _x = x + k + halfDim;
+                    Vec3f &bgr = padded.at<Vec3f>(_y, _x);
+                    small.at<Vec3f>(Point(j + halfDim, k + halfDim)) = bgr;
+                }
+            }
+            Mat tmp(dim, dim, CV_32FC3, Scalar::all(0.f));
 
-//            ptrA[x] = cv::Vec3b(ptr[x][2], ptr[x][1], ptr[x][0]);
-            k[x] = cv::Vec3b(p[x]);
-
+            cv::multiply(small, kernel, tmp);
+            //TODO: issue with three channel multiplications.
+            // this link could be helpful: https://answers.opencv.org/question/66216/how-to-multiply-cvmat-with-mask/
+//            applied.at<Vec3f>(Point(y, x)) = tmp;
+//                    k[x] = cv::Vec3b(p[x]);
 //            applied.at<Vec3b>(Point(x, y)) = color;
 //            }
-
             //apply kernel
-
-
-
         }
     }
-    return applied;
+
+    padded.convertTo(padded, CV_8UC3, 255);
+    return padded;
 }
 
 void runPart1() {
